@@ -9,9 +9,11 @@ class Users(BaseModel):
     creation: int = int ( datetime.timestamp(datetime.now()))
 
 class ToDoTask(BaseModel):
+    id: str = ''
     index: str
     description: str
     remind_noti: bool = False
+    checked: bool = False
     user_id: str
     updated_at: int = int ( datetime.timestamp(datetime.now()))
     creation: int = int ( datetime.timestamp(datetime.now()))

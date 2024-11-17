@@ -15,6 +15,7 @@ def individual_task(task):
         "index": str(task['index']),
         "description": str(task['description']),
         "remind_noti": str(task["remind_noti"]),
+        "checked": str(task['checked']),
         "user_id": str(task['user_id'])
     }
 
