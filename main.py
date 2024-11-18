@@ -11,6 +11,7 @@ import jwt
 from passlib.context import CryptContext 
 import logging
 import json
+import bcrypt
 
 SECURITY_ALGORITHM = 'HS256'
 SECRET_KEY = '123456'
@@ -75,15 +76,15 @@ def save_message_to_db(client_id: str, message: str):
 async def websocket_endpoint(client_id: str, websocket: WebSocket):
     await manager.connect(client_id, websocket)
     try:
-        #await manager.send_personal_message(f"Hello Client {client_id}!", client_id)
         while True:
             data = await websocket.receive_text()
             await manager.send_personal_message(f"{data}", client_id)
+            #messages_collection.insert_one({"client_id": client_id, "data":data})
             await manager.broadcast({"id": client_id, "data": data}, exclude_client=client_id)
     except WebSocketDisconnect:
         manager.disconnect(client_id)
         logging.info(f"Client {client_id} disconnected")
-        #await manager.broadcast(f"Client {client_id} has left the chat.")
+        await manager.broadcast({"id": client_id, "data": "has left the chat"}, exclude_client=client_id)
 
 user_router = APIRouter()
 task_router = APIRouter()
@@ -91,16 +92,15 @@ task_router = APIRouter()
 @user_router.get("/all_users")
 async def get_all_users():
     data = user_collection.find( )
-    return all_users(data)
+    return {"status": 200, "message": "Get all user sucessfully!" ,"data" :all_users(data)}
 
 @user_router.get("/get_user_name_{user_id}")
 async def get_user_name(user_id: str):
     try:
-        #{"_id":user_id}
         data = user_collection.find({"_id":ObjectId(user_id)})
         if data is None:
             raise HTTPException(status_code=404, detail="User not found")
-        return all_users(data)[0]['name']
+        return {"status": 200, "message": "Get Username Successfully1", "data": all_users(data)[0]['name']}
     except Exception as e:
         return HTTPException(status_code=500, detail="Internal Server Error")
 
@@ -112,8 +112,9 @@ async def create_user(new_user: Users):
         if existing_user:
             return HTTPException(status_code=400, detail="Username already exists")
 
+        new_user.password = bcrypt.hashpw(new_user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         resp = user_collection.insert_one(dict(new_user))
-        return {"status_code": 200, "id": str(resp.inserted_id)}
+        return {"status_code": 200, "message": "Create user Sucessfully!", "id": str(resp.inserted_id)}
 
     except HTTPException as e:
         return e
@@ -141,16 +142,22 @@ async def log_in(credentials: Users):
         raise HTTPException(status_code=404, detail="User not found")
 
     token = generate_token(str(user['_id']))
-   
-    if user["password"] != password:
-        return HTTPException(status_code=400, detail="Invalid password")
 
-    #return {"status_code": 200, "message": "Login successful", "user_id": str(user["_id"])}
+   
+    if  not bcrypt.checkpw(password = password.encode('utf-8'), hashed_password=user['password'].encode('utf-8')):
+        return HTTPException(status_code=400, detail="Invalid password")
+    
+    token = generate_token(str(user['_id']))
+
     return {
-        'token': token,
-        'user_id': str(user['_id']),
-        'user_name': str(user['name']),
-        'mail': str(user['mail']),
+        "status": 200,
+        "message": "Login Sucessfully!",
+        "data": {
+            'token': token,
+            'user_id': str(user['_id']),
+            'user_name': str(user['name']),
+            'mail': str(user['mail']),
+        }
     }
 
 @user_router.put("/update_user_{user_id}")
@@ -202,7 +209,7 @@ async def get_tasks_by_user(user_id: str):
                 user_id=task.get("user_id")
             ) for task in tasks
         ]
-        return task_list
+        return {"status": 200, "message": "Get all tasks of current user successfully!", "data": task_list}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
@@ -211,7 +218,7 @@ async def get_tasks_by_user(user_id: str):
 async def create_task(new_task: ToDoTask):
     try:
         resp = todo_collection.insert_one(dict(new_task))
-        return str(resp.inserted_id)
+        return {"status": 200, "message": "Create new task sucessfully!", "data": str(resp.inserted_id)}
     except Exception as e:
         return HTTPException(status_code=500, detail=f"Some error occured {e}")
 
@@ -231,7 +238,7 @@ async def update_task(task_id: str, updated_task: ToDoTask):
         if resp.matched_count == 0:
             raise HTTPException(status_code=404, detail="Task update failed")
         
-        return {"status_code": 200, "message": "Task Updated Successfully"}
+        return {"status": 200, "message": "Task Updated Successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
@@ -244,7 +251,7 @@ async def delete_task(task_id:str):
         if not existing_task:
             return HTTPException(status_code=404, detail=f"Task does not exists")
         resp = todo_collection.delete_one({"_id": id})
-        return {"status_code": 200, "message": "Task Deleted Successfully"}
+        return {"status": 200, "message": "Task Deleted Successfully"}
 
     except Exception as e:
         return HTTPException(status_code=500, detail=f"Some error occured {e}")
