@@ -23,7 +23,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "localhost:3000"],
+    allow_origins=["http://localhost:3000=", "localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -88,6 +88,10 @@ async def websocket_endpoint(client_id: str, websocket: WebSocket):
 
 user_router = APIRouter()
 task_router = APIRouter()
+
+@user_router.get("/")
+async def root():
+    return "API connected"
 
 @user_router.get("/all_users")
 async def get_all_users():
