@@ -17,3 +17,7 @@ class ToDoTask(BaseModel):
     user_id: str
     updated_at: int = int ( datetime.timestamp(datetime.now()))
     creation: int = int ( datetime.timestamp(datetime.now()))
+
+class ChatMessage(BaseModel):
+    client_id: str
+    data: str
