@@ -21,3 +21,12 @@ def individual_task(task):
 
 def all_tasks(tasks):
     return [individual_task(task) for task in tasks]
+
+def individual_msg(message):
+    return {
+        "client_id": str(message['client_id']),
+        "data": str(message['data'])
+    }
+
+def all_messages(messages):
+    return [individual_msg(msg) for msg in messages]

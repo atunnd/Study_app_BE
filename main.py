@@ -1,7 +1,7 @@
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from config import user_collection, todo_collection, messages_collection
-from database.schemas import all_users, all_tasks
+from database.schemas import all_users, all_tasks, all_messages
 from database.models import Users, ToDoTask
 from bson.objectid import ObjectId
 from datetime import datetime, timedelta
@@ -79,7 +79,7 @@ async def websocket_endpoint(client_id: str, websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             await manager.send_personal_message(f"{data}", client_id)
-            #messages_collection.insert_one({"client_id": client_id, "data":data})
+            messages_collection.insert_one({"client_id": client_id, "data":data})
             await manager.broadcast({"id": client_id, "data": data}, exclude_client=client_id)
     except WebSocketDisconnect:
         manager.disconnect(client_id)
@@ -88,9 +88,11 @@ async def websocket_endpoint(client_id: str, websocket: WebSocket):
 
 user_router = APIRouter()
 task_router = APIRouter()
+chat_router = APIRouter()
+
 
 @user_router.get("/")
-async def root():
+async def read_root():
     return "API connected"
 
 @user_router.get("/all_users")
@@ -261,6 +263,12 @@ async def delete_task(task_id:str):
         return HTTPException(status_code=500, detail=f"Some error occured {e}")
 
 
+@chat_router.get("/get_all_msg")
+async def get_chat_msg():
+    data =  messages_collection.find( )
+    return {"status": 200, "message": "Get all message sucessfully!" ,"data" :all_messages(data)}
+
 
 app.include_router(task_router)
 app.include_router(user_router)
+app.include_router(chat_router)
