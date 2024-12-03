@@ -3,7 +3,8 @@ def individual_user(user):
         "id": str(user["_id"]),
         "name": str(user["name"]),
         "mail": str(user["mail"]),
-        "password": str(user["password"])
+        "password": str(user["password"]),
+        "gemini_api": str(user['gemini_api'])
     }
 
 def all_users(users):

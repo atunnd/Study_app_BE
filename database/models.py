@@ -5,6 +5,7 @@ class Users(BaseModel):
     name: str
     mail: str
     password: str
+    gemini_api: str = ''
     updated_at: int = int ( datetime.timestamp(datetime.now()))
     creation: int = int ( datetime.timestamp(datetime.now()))
 
