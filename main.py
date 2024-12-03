@@ -12,14 +12,18 @@ from passlib.context import CryptContext
 import logging
 import json
 import bcrypt
+from dotenv import load_dotenv
+import os
 
-SECURITY_ALGORITHM = 'HS256'
-SECRET_KEY = '123456'
+
+load_dotenv()
+SECURITY_ALGORITHM = os.getenv('SECURITY_ALGORITHM')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 
 app = FastAPI(
-    title='FastAPI JWT', openapi_url='/openapi.json', docs_url='/docs',
-    description='fastapi jwt')
+    title='Study With Me API', openapi_url='/openapi.json', docs_url='/docs',
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,7 +62,6 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Helper function to log messages in the database
 def save_message_to_db(client_id: str, message: str):
     message_entry = {
         "client_id": client_id,
@@ -75,6 +78,7 @@ def save_message_to_db(client_id: str, message: str):
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(client_id: str, websocket: WebSocket):
     await manager.connect(client_id, websocket)
+ 
     try:
         while True:
             data = await websocket.receive_text()
@@ -84,33 +88,17 @@ async def websocket_endpoint(client_id: str, websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(client_id)
         logging.info(f"Client {client_id} disconnected")
-        await manager.broadcast({"id": client_id, "data": "has left the chat"}, exclude_client=client_id)
+        # await manager.broadcast({"id": client_id, "data": "has left the chat"}, exclude_client=client_id)
 
 user_router = APIRouter()
+authentication_router = APIRouter()
 task_router = APIRouter()
 chat_router = APIRouter()
 
 
-@user_router.get("/")
-async def read_root():
-    return "API connected"
 
-@user_router.get("/all_users")
-async def get_all_users():
-    data = user_collection.find( )
-    return {"status": 200, "message": "Get all user sucessfully!" ,"data" :all_users(data)}
 
-@user_router.get("/get_user_name_{user_id}")
-async def get_user_name(user_id: str):
-    try:
-        data = user_collection.find({"_id":ObjectId(user_id)})
-        if data is None:
-            raise HTTPException(status_code=404, detail="User not found")
-        return {"status": 200, "message": "Get Username Successfully1", "data": all_users(data)[0]['name']}
-    except Exception as e:
-        return HTTPException(status_code=500, detail="Internal Server Error")
-
-@user_router.post("/create_user")
+@authentication_router.post("/auth/register")
 async def create_user(new_user: Users):
     try:
         # Check if the username already exists
@@ -129,7 +117,7 @@ async def create_user(new_user: Users):
     
 def generate_token(username: Union[str, Any]) -> str:
     expire = datetime.utcnow() + timedelta(
-        seconds=60 * 60 * 24 * 3  # Expired after 3 days
+        seconds=60 * 60 * 24 * 3  
     )
     to_encode = {
         "exp": expire, "username": username
@@ -137,7 +125,7 @@ def generate_token(username: Union[str, Any]) -> str:
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=SECURITY_ALGORITHM)
     return encoded_jwt
 
-@user_router.post("/log_in")
+@authentication_router.post("/auth/log_in")
 async def log_in(credentials: Users):
     logging.info(f"Received credentials: {credentials}")
     usermail = credentials.mail
@@ -166,45 +154,12 @@ async def log_in(credentials: Users):
         }
     }
 
-@user_router.put("/update_user_{user_id}")
-async def update_user(user_id: str, updated_user: Users):
-    try:
-        id = ObjectId(user_id)
-        existing_doc = user_collection.find_one({"_id": id})
-        if not existing_doc:
-            return HTTPException(status_code=404, detail=f"User does not exists")
-        updated_user.updated_at = datetime.timestamp(datetime.now())
-        resp = user_collection.update_one({"_id": id}, {"$set": dict(updated_user)})
-        return {"status_code": 200, "message": "User Updated Successfully"}
-
-    except Exception as e:
-        return HTTPException(status_code=500, detail=f"Some error occured {e}")
-    
-@user_router.delete("/delete_user{user_id}")
-async def delete_user(user_id:str):
-    try:
-        id = ObjectId(user_id)
-        existing_user = user_collection.find_one({"_id": id})
-        if not existing_user:
-            return HTTPException(status_code=404, detail=f"User does not exists")
-        resp = user_collection.delete_one({"_id": id})
-        return {"status_code": 200, "message": "User Deleted Successfully"}
-
-    except Exception as e:
-        return HTTPException(status_code=500, detail=f"Some error occured {e}")
-
-
-@task_router.get("/all_tasks", dependencies=[Depends(validate_token)])
-async def get_all_tasks():
-    data = todo_collection.find( )
-    return all_tasks(data)
 
 @task_router.get("/tasks/{user_id}", dependencies=[Depends(validate_token)])
 async def get_tasks_by_user(user_id: str):
     try:
-        # Convert user_id to ObjectId if necessary, depending on how it's stored
-        tasks = todo_collection.find({"user_id": user_id})  # Find tasks that match the user_id
-        tasks = list(tasks)  # Convert the cursor to a list
+        tasks = todo_collection.find({"user_id": user_id})  
+        tasks = list(tasks)  
         task_list = [
             ToDoTask(
                 id=str(task["_id"]),
@@ -220,7 +175,7 @@ async def get_tasks_by_user(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
-@task_router.post("/create_task", dependencies=[Depends(validate_token)])
+@task_router.post("/task", dependencies=[Depends(validate_token)])
 async def create_task(new_task: ToDoTask):
     try:
         resp = todo_collection.insert_one(dict(new_task))
@@ -228,7 +183,7 @@ async def create_task(new_task: ToDoTask):
     except Exception as e:
         return HTTPException(status_code=500, detail=f"Some error occured {e}")
 
-@task_router.put("/update_task/{task_id}", dependencies=[Depends(validate_token)])
+@task_router.put("/task/{task_id}", dependencies=[Depends(validate_token)])
 async def update_task(task_id: str, updated_task: ToDoTask):
     try:
         logging.info(f"Updating task {task_id} with data: {updated_task}")
@@ -249,7 +204,7 @@ async def update_task(task_id: str, updated_task: ToDoTask):
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
 
-@task_router.delete("/delete_task_{task_id}", dependencies=[Depends(validate_token)])
+@task_router.delete("/task/{task_id}", dependencies=[Depends(validate_token)])
 async def delete_task(task_id:str):
     try:
         id = ObjectId(task_id)
@@ -261,14 +216,66 @@ async def delete_task(task_id:str):
 
     except Exception as e:
         return HTTPException(status_code=500, detail=f"Some error occured {e}")
+    
+
+@user_router.get("/user/{user_id}/name", dependencies=[Depends(validate_token)])
+async def get_user_name(user_id: str):
+    try:
+        data = user_collection.find({"_id":ObjectId(user_id)})
+        if data is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"status": 200, "message": "Get Username Successfully!", "data": all_users(data)[0]['name']}
+    except Exception as e:
+        return HTTPException(status_code=500, detail="Internal Server Error")
+    
+@user_router.get("/user/{user_id}/chatbot-api", dependencies=[Depends(validate_token)])
+async def get_user_chatbot_api(user_id: str):
+    try:
+        data = user_collection.find({"_id":ObjectId(user_id)})
+        if data is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"status": 200, "message": "Get Chatbot API Successfully!", "data": all_users(data)[0]['gemini_api']}
+    except Exception as e:
+        return HTTPException(status_code=500, detail="Internal Server Error")
+
+@user_router.put("/user/{user_id}/password")
+async def update_user_password(user_id: str, updated_info: Users, dependencies=[Depends(validate_token)]):
+    try:
+        id = ObjectId(user_id)
+        existing_doc = user_collection.find_one({"_id": id})
+        if not existing_doc:
+            return HTTPException(status_code=404, detail=f"User does not exists")
+
+        new_password = bcrypt.hashpw(updated_info.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        resp = user_collection.update_one({"_id": id}, {"$set": {"password": new_password}})
+        return {"status_code": 200, "message": "User Updated Successfully"}
+
+    except Exception as e:
+        return HTTPException(status_code=500, detail=f"Some error occured {e}")
+
+@user_router.put("/user/{user_id}/chatbot-api")
+async def update_user_chatbot_api(user_id: str, updated_info: Users, dependencies=[Depends(validate_token)]):
+    try:
+        id = ObjectId(user_id)
+        existing_doc = user_collection.find_one({"_id": id})
+        if not existing_doc:
+            return HTTPException(status_code=404, detail=f"User does not exists")
+
+        # new_api = bcrypt.hashpw(updated_info.gemini_api.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        new_api = updated_info.gemini_api
+        resp = user_collection.update_one({"_id": id}, {"$set": {"gemini_api": new_api}})
+        return {"status_code": 200, "message": "User Updated Successfully!"}
+
+    except Exception as e:
+        return HTTPException(status_code=500, detail=f"Some error occured {e}")
 
 
-@chat_router.get("/get_all_msg")
+@chat_router.get("/messages", dependencies=[Depends(validate_token)])
 async def get_chat_msg():
     data =  messages_collection.find( )
-    return {"status": 200, "message": "Get all message sucessfully!" ,"data" :all_messages(data)}
+    return {"status": 200, "message": "Get all message sucessfully!" ,"data": all_messages(data)}
 
-
-app.include_router(task_router)
-app.include_router(user_router)
-app.include_router(chat_router)
+app.include_router(authentication_router, tags=['Authentication'])
+app.include_router(user_router, tags=["User"])
+app.include_router(task_router, tags=["Task"])
+app.include_router(chat_router, tags=["Chat"])

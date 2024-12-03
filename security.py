@@ -3,9 +3,12 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer
 from pydantic import ValidationError
+from dotenv import load_dotenv
+import os
 
-SECURITY_ALGORITHM = 'HS256'
-SECRET_KEY = '123456'
+load_dotenv()
+SECURITY_ALGORITHM = os.getenv('SECURITY_ALGORITHM')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 reusable_oauth2 = HTTPBearer(
     scheme_name='Authorization'
